@@ -101,7 +101,7 @@ while True:
         last_shift_time = current_time
 
     # Wait for at least one of the sockets to be ready for processing
-    readable, _, _ = select.select(inputs, [], [], 0.05)
+    readable, _, _ = select.select(inputs, [], [], 0.075)
 
     # Handle inputs
     for s in readable:

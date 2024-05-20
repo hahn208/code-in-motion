@@ -2,19 +2,20 @@ import argparse
 import socket
 import sys
 
-from pynput.keyboard import Key, Listener
+from pynput.keyboard import Key, KeyCode, Listener
 
 def on_press(key):
-    # Convert the keycode to string and skip the single-quote.
-    keyDec = str(key)[1]
+    if len(str(key)) == 3:
+        # Convert the keycode to string and skip the single-quote.
+        keyChar = key.char
 
-    # non-function keys only, eg 'A'
-    if 32 < ord(keyDec) < 127 and len(str(key)) == 3:
-        sock.sendall(keyDec.encode())
+        # non-function keys only, eg 'A'
+        if 32 < ord(keyChar) < 127:
+            sock.sendall(keyChar.encode())
 
 def on_release(key):
     # Stop listener on escape
-    if key == Key.esc:
+    if key == KeyCode.from_char('~'):
         print('Closing socket')
         sock.close()
         return False
@@ -23,6 +24,8 @@ def on_release(key):
 parser = argparse.ArgumentParser(description='Connect to host socket.')
 parser.add_argument('host_address', help='The servername or IP.')
 args = parser.parse_args()
+
+print("Press Tilde to close connection.")
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

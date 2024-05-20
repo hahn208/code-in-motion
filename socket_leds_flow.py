@@ -6,7 +6,6 @@ import neopixel
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 # Bind the socket to the address and port
 server_address = ('0.0.0.0', 10000)
@@ -21,27 +20,35 @@ sock.setblocking(False)
 # Lists to hold the sockets we'll be monitoring
 inputs = [sock]
 
-# Variable to hold the last time "hey" was printed
+# Variable to hold the iteration increment
 last_shift_time = time.time()
 
-# Interval for printing "hey" in seconds
+# Interval for advancing pixel sequence
 shift_interval = 0.05
 
+# Choose the pin to use on the Raspberry Pi GPIO
 pixel_pin = board.D18
+
+# Set the number of pixels. No idea why, I needed to add two.
 num_pixels = 10
 
-# The order of the pixel colors - RGB or GRB. Some NeoPixels have red and green reversed!
+# If there is a white led, set the brightness [0~255]
+white_level = 64
+
+# The order of the pixel colors - RGB, GRB, RGBW, or GRBW. Some NeoPixels have red and green reversed!
 ORDER = neopixel.GRBW
 
-pixels = neopixel.NeoPixel(
-    pixel_pin, num_pixels, brightness=0.8, auto_write=True, pixel_order=ORDER
-)
+pixels = neopixel.NeoPixel(pixel_pin, num_pixels, brightness=1, auto_write=True, pixel_order=ORDER)
 
-def set_lum(c, lum):
-    return round(c * lum / 100)
+# Make an inactive pixel based on the existence of a white led
+inactive_pixel = (0, 0, 0) if ORDER in (neopixel.RGB, neopixel.GRB) else (0, 0, 0, 0)
 
+# Factor the luminosity into the pixel Tuple
+def set_lum(pixel, lum):
+    return tuple(round(p * lum / 100) for p in pixel)
+
+# Given a value [0~255] and luminosity, return an rgb|w Tuple
 def wheel(pos, lum = 100):
-    # Input a value 0 to 255 to get a color value.
     # The colours are a transition r - g - b - back to r.
     if 0 > pos > 255:
         r = g = b = 0
@@ -59,13 +66,20 @@ def wheel(pos, lum = 100):
         r = 0
         g = int(pos * 3)
         b = int(255 - pos * 3)
-    return (set_lum(r, lum), set_lum(g, lum), set_lum(b, lum)) if ORDER in (neopixel.RGB, neopixel.GRB) else (set_lum(r, lum), set_lum(g, lum), set_lum(b, lum), 100)
 
+    if ORDER in (neopixel.RGB, neopixel.GRB):
+        return set_lum((r, g, b), lum)
+
+    # RGBW | GRBW
+    return set_lum((r, g, b, white_level), lum)
+
+# Starting value for the led sequence
 iter = 0
-led_list = [(0,0,0,0)]
+led_list = [inactive_pixel]
 
-for i in range(num_pixels-1):
-    led_list = [(0,0,0,0)] + led_list
+# Populate a List of of inactive pixels
+for i in range(num_pixels - 1):
+    led_list = [inactive_pixel] + led_list
 
 print('Listening for client connection.')
 
@@ -74,13 +88,12 @@ while True:
     current_time = time.time()
 
     if current_time - last_shift_time >= shift_interval:
-        # Shift new pixel color into array
-        led_list = [(led_list[0][0] // 5,led_list[0][1] // 5,led_list[0][2] // 5, 0)] + led_list
+        # Shift new pixel color into the List at a lower brightness for a trailing effect.
+        led_list = [tuple(p // 5 for p in led_list[0])] + led_list
 
         # Pop the last item off
         del led_list[-1]
 
-        # print(led_list)
         # Set colors
         for x in range(num_pixels-1):
             pixels[x] = led_list[x]
@@ -88,7 +101,7 @@ while True:
         last_shift_time = current_time
 
     # Wait for at least one of the sockets to be ready for processing
-    readable, _, _ = select.select(inputs, [], [], 0.07)
+    readable, _, _ = select.select(inputs, [], [], 0.05)
 
     # Handle inputs
     for s in readable:
@@ -109,7 +122,8 @@ while True:
                 kchar = next(iter(kdata))
 
             # Shift new pixel color into array
-            led_list = [wheel(round(ord(kchar) * 4) & 255)] + led_list
+            # Multiplying the key code by 6 (arbitrary) increases the color range relative to key pressed
+            led_list = [wheel(ord(kchar) * 6 & 255)] + led_list
 
             # Pop the last item off
             del led_list[-1]
@@ -123,21 +137,4 @@ while True:
                 inputs.remove(s)
 
 # Clear leds
-for x in range(num_pixels-1):
-    time.sleep(0.01)
-    pixels[x] = (0,0,0,0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pixels.fill(inactive_pixel)

@@ -24,19 +24,19 @@ inputs = [sock]
 last_shift_time = time.time()
 
 # Interval for advancing pixel sequence
-shift_interval = 0.05
+shift_interval = 0.03
 
 # Choose the pin to use on the Raspberry Pi GPIO
 pixel_pin = board.D18
 
-# Set the number of pixels. No idea why, I needed to add two.
-num_pixels = 10
+# Set the number of pixels.
+num_pixels = 13
 
 # If there is a white led, set the brightness [0~255]
 white_level = 64
 
 # The order of the pixel colors - RGB, GRB, RGBW, or GRBW. Some NeoPixels have red and green reversed!
-ORDER = neopixel.GRBW
+ORDER = neopixel.GRB
 
 pixels = neopixel.NeoPixel(pixel_pin, num_pixels, brightness=1, auto_write=True, pixel_order=ORDER)
 
@@ -75,11 +75,9 @@ def wheel(pos, lum = 100):
 
 # Starting value for the led sequence
 iter = 0
-led_list = [inactive_pixel]
 
 # Populate a List of of inactive pixels
-for i in range(num_pixels - 1):
-    led_list = [inactive_pixel] + led_list
+led_list = [inactive_pixel] * num_pixels
 
 print('Listening for client connection.')
 
@@ -89,19 +87,19 @@ while True:
 
     if current_time - last_shift_time >= shift_interval:
         # Shift new pixel color into the List at a lower brightness for a trailing effect.
-        led_list = [tuple(p // 5 for p in led_list[0])] + led_list
+        led_list = [tuple(p // 4 for p in led_list[0])] + led_list
 
         # Pop the last item off
         del led_list[-1]
 
         # Set colors
-        for x in range(num_pixels-1):
+        for x in range(num_pixels - 1):
             pixels[x] = led_list[x]
 
         last_shift_time = current_time
 
     # Wait for at least one of the sockets to be ready for processing
-    readable, _, _ = select.select(inputs, [], [], 0.075)
+    readable, _, _ = select.select(inputs, [], [], 0.05)
 
     # Handle inputs
     for s in readable:
@@ -123,7 +121,7 @@ while True:
 
             # Shift new pixel color into array
             # Multiplying the key code by 6 (arbitrary) increases the color range relative to key pressed
-            led_list = [wheel(ord(kchar) * 6 & 255)] + led_list
+            led_list = [wheel((ord(kchar) - 32) * 6 & 255)] + led_list
 
             # Pop the last item off
             del led_list[-1]
